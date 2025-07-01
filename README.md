@@ -65,7 +65,15 @@ Executing the following command will generate a OSNMA-enabled Galileo signal fil
 
 ## Evaluation
 
-The generated Galileo signal has been tested with GNSS-SDR and OSNMAlib, here are evaluation results.
+The generated Galileo signal has been tested with GNSS-SDR and OSNMAlib. For OSNMAlib, you need to annotate the dummy page detection code, as shown below.
+
+```python
+#if self._filter_page(page):
+
+    #continue
+```
+
+Here are evaluation results.
 
 ![](gnss-output.png)
 

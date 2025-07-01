@@ -617,7 +617,7 @@ void  fillOSNMA(int prn,vector<page_struct> &cur_page)
         string nav_mas_bing_r=hexToBinary(osnma_r[i].navMsg);
         
         string nav_mas_bing_c=hexToBinary(cur_page[i].navMsg);
-        string osnma_bin=nav_mas_bing_r.substr(138,40);
+        string osnma_bin=nav_mas_bing_r.substr(138,40);  
 
         nav_mas_bing_c.replace(138,40,osnma_bin);
         
@@ -829,6 +829,13 @@ void fillTag(vector<string> tagList,vector<page_struct> &cur_page)
         {
             
             string navBin=hexToBinary(cur_page[i].navMsg);
+            string osnma_bin = navBin.substr(138, 40);
+
+
+int zero_count = count(osnma_bin.begin(), osnma_bin.end(), '0');
+if (zero_count > 30) {
+    continue; 
+}
             string temp=navBin.substr(0,146);
             string tag=hexToBinary(tagList[0]);
             string tag1=tag.substr(0,32);
@@ -850,8 +857,9 @@ void fillTag(vector<string> tagList,vector<page_struct> &cur_page)
             temp=navBin.substr(0,146);
             temp+=tag2;
             temp+=navBin.substr(154);
-
             cur_page[i+1].navMsg=binaryToHexBitset(temp); 
+            
+            
             if(!tagList.empty())
             {
                 tagList.erase(tagList.begin());
@@ -1189,7 +1197,7 @@ int main(int argc, char *argv[])
     
     vector<int> cur_prn;
     //cout<<nav_page.size()<<endl;
-    //show2(nav_page);
+   // show2(nav_page);
     int prnNum=getNumberPrn(cur_prn);
     
     
@@ -1203,11 +1211,12 @@ int main(int argc, char *argv[])
     {
     	
     	int prn = cur_prn[i];
+    	
     	//cout<<"Generate navigation data for prn "<<prn<<endl;
     	vector<page_struct> cur_page;
     	//cout<<"ssssssssssssssssssssss"<<endl;
     	fixNavPage(prn,cur_page);
-    	
+
     	fillOSNMA(prn,cur_page);
     	cout<<"Generate navigation message for prn :"<<prn<<endl;
    	//if(prn==8)
@@ -1227,7 +1236,6 @@ int main(int argc, char *argv[])
         singleIn(prn,cur_page);
         
     }
-    
     cout<<"---------------------------------------------"<<endl;
     for(int i=0;i<prnNum;i++)
     {
