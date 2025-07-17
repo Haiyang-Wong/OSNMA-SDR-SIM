@@ -79,3 +79,6 @@ Here are evaluation results.
 
 ![](osnmaLib-output.png)
 
+## Acknowledgements
+
++ This project is developed based on [GALILEO-SDR-SIM](https://github.com/harshadms/galileo-sdr-sim).
