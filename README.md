@@ -41,7 +41,7 @@ make
 
 Usage, help and options
 ```
-Usage: ./usrp_galileo [options]
+Usage: ./osnma-sdr-sim [options]
 Options:
   -e <Ephemeris>   RINEX navigation file for Galileo ephemerides (required)
   -o <File sink>   File to store IQ samples (default: ./galileosim.ishort)
