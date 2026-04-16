@@ -55,35 +55,9 @@ int generateINavMsg(galtime_t g, channel_t *chan, ephem_t *eph, ionoutc_t *ionou
    // printf("\n\r");
 
     if(flag_write_nav==0) //wriew in nav_page
-    {
-	page_struct a;
-	a.tow=g.sec;
-	if(start_time>g.sec)
-	{
-		start_time=g.sec;
-	}
-        a.wn=static_cast<int>(cur_wn);
-        a.prn=eph->svid;
-        //cout<<a.prn<<"++++++++++++++++++++++++"<<endl;
-        ostringstream oss;
-
-        for (int i = 0; i < 120; ++i) 
-        {
-            oss << even_page[i];
-        }
-        for (int i = 0; i < 120; ++i) 
-        {
-            oss << odd_page[i];
-        }
-        string ss = oss.str();
-        a.navMsg=binaryToHexBitset(ss);
-        nav_page.push_back(a);
-        if(a.prn==2)
-        {
-            
-           // cout<<a.tow<<"---------------"<<endl;
-            nav_page_2.push_back(a);
-        }
+    {	
+	fill_nav_page(g,eph,odd_page,even_page);
+        
     }
     generateFrame(even_page, &page[0]);
     generateFrame(odd_page, &page[250]);

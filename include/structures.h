@@ -207,4 +207,17 @@ typedef struct
     int prn;
     string navMsg;
 }page_struct;
-
+typedef struct {
+    string key;
+    int firstTow;
+}KeyItem;
+struct GST{
+    string tow;
+    string wn;
+};
+typedef struct GST gst;
+typedef struct {
+    int HF;
+    int MF;
+    int dic;
+}dsm_id;

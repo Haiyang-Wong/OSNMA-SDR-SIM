@@ -3,6 +3,7 @@
 
 #include "constants.h"
 #include "structures.h"
+#include "json.hpp"
 #include <vector>
 #include <pthread.h>
 #include <iostream>
@@ -26,7 +27,9 @@
 #include <sys/shm.h>
 #include <queue>
 #include <map>
-
+extern vector<vector<string>> mltSequence;
+extern int ks_num[9];
+extern int ts_num[5];
 using namespace std;
 
 const int WordAllocationE1[30] = {
@@ -205,6 +208,62 @@ int AssignBits(unsigned int Data, int BitNumber, int BitStream[]);
 unsigned char ConvolutionEncode(unsigned char EncodeBits);
 unsigned int Crc24qEncode(unsigned int *BitStream, int Length);
 string binaryToHexBitset(const string& binaryStr);
+string hexToBinary(const string& hexStr);
+
+// /* osnma-channel.cpp*/
+int getNumberPrn(vector<int> &cur_prn);
+void fill_nav_page(galtime_t g, ephem_t *eph,int *odd_page,int *even_page);
+void fixNavPage(int a,vector<page_struct> &cur_prn);
+// /*auxiliary_osnma,cpp*/
+vector<KeyItem> getKeyItem(int prn,string PATH);
+void  fillOSNMA(int prn,vector<page_struct> &cur_page,string PATH);
+
+// /* parse-osnma-para.cpp*/
+int getFirstTow(int a);
+int getPageNumInSub(int tow);
+string getMackInPage(string nav_msg_hex);
+vector<string> getKey(vector<page_struct> &cur_page);
+vector<string> getmacauth(int prn,vector<page_struct> cur_page);
+string toBinary8(int num);
+string toBinary12(int num);
+string toBinary20(int num);
+vector<gst> getGst(vector<page_struct> &cur_page);
+void getDic(vector<page_struct> cur_page);
+void findSeqByID(int target_id);
+// /* ADKD.cpp*/
+void addWord10(vector<page_struct> &cur_page);
+int is60page(int tow);
+vector<string> getAuthDataForADKD4(int prn, vector<page_struct> &cur_page);
+vector<gst> getGstADKD12(const vector<page_struct> &cur_page);
+vector<string> getNavDataADKD12(const vector<page_struct> &cur_page);
+vector<string> getAuthDatADKD12(const vector<page_struct> &cur_page,int prn);
+vector<string> computeTagADKD12(vector<string> key,vector<string> authData);
+void fillTagADKD12(vector<page_struct> &nav_page,vector<string> tagList);
+vector<vector<string>> getNavDataForADKD4(vector<page_struct> &cur_page);
+vector<string> getAuthData(int prn, vector<page_struct> &cur_page);
+vector<vector<string>> getNavData(vector<page_struct> &cur_page);
+vector<string> keyforADKD4(vector<KeyItem> key,int start);
+vector<string> keyforADKD12(vector<KeyItem> key,int start);
+vector<string> computeTagADKD4(vector<string> key,vector<string> authData);
+void fillTagADKD4(vector<page_struct> &nav_page,vector<string> &tagList);
+
+//  /* genarate-tag.cpp */
+vector<string> commac(vector<string> teslaKey, vector<string> authData);
+vector<uint8_t> hexstr_to_bytes(const string& hex);
+vector<uint8_t> bitstring_to_bytes(const string& bits);
+vector<uint8_t> hmac_sha256(const vector<uint8_t> &key, const vector<uint8_t> &message);
+string macToString(const vector<uint8_t>& mac);
+vector<string> computeTag(vector<string> key,vector<string> authData); //
+void cleanTag(vector<page_struct>& cur_page);
+void fillTagInfo(int prn ,vector<page_struct>& cur_page);
+/* msg-tag.cpp */
+void fillTag(vector<string> tagList,vector<page_struct> &cur_page);
+void fillCrc(vector<page_struct> &cur_page);
+void binStringToBinInt(const std::string &binaryStr, int *bitArray);
+void trsData(int *page,int *data);
+void encode_int_to_bits(int *page, unsigned int value, int num_bits);
+unsigned int Crc24qEncode1(int *BitStream, int Length);
+void singleIn(int a,vector<page_struct> cur_page);
 // /*! \brief FIFO functions - socket.cpp */
 // int sockinit(short port);
 // void sockclose(int s);

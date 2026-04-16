@@ -315,7 +315,7 @@ fprintf(stderr, "\ntmin = %4d/%02d/%02d,%02d:%02d:%02.0f \n", tmin.y,
 
     fprintf(stderr, "tmax = %4d/%02d/%02d,%02d:%02d:%02.0f \n", tmax.y,
             tmax.m, tmax.d, tmax.hh, tmax.mm, tmax.sec);
-cout<<"---------------------------------------------"<<endl;
+cout<<""<<endl;
     ////////////////////////////////////////////////////////////
     // Read data from file and setup bit and TOW correction queues
     ////////////////////////////////////////////////////////////
@@ -524,7 +524,8 @@ cout<<"---------------------------------------------"<<endl;
                        //cout<<eph.svid<<","<<index<<endl;
    			//cout<<"prnTable[index]:"<<prnTable[index]<<" g.sec:"<<grx.sec<<"\n\r"<<endl;
 			if(prnTable[index]<static_cast<int>(grx.sec))//prnTable[index]<static_cast<int>(g.sec)
-   			{
+   			{	
+   				//cout<<chan[i].prn<<"+++++++++++++++++"<<"\n\r"<<endl;
    				generateINavMsg(grx, &chan[i], &eph, &iono);   
    				prnTable[index]=static_cast<int>(grx.sec);
     			}

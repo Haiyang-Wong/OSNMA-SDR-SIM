@@ -28,12 +28,26 @@
     }
 
 using namespace std;
+
+int durring_time=0;
+int numSub = 0;
 string PATH="";
-int subNub=11;
+int subNub=10;
+const string mapping = "0123456789ABCDEF";
 double start_time = 1000000000.0;
+
 int cur_wn = 0;
 bool stop_signal_called = false;
-
+    int HF=0;
+    int MF=0;
+    int dic=0;
+vector<vector<string>> mltSequence;
+int ks_num[9]={96,104,112,120,128,160,192,224,256};
+int ts_num[5]={20,24,28,32,40};
+int KS;
+int TS;
+int KL;
+int TL;
 void sigint_handler(int code)
 {
     (void)code;
@@ -182,27 +196,14 @@ void usage(char *progname)
     return;
 }
 
-struct GST{
-    string tow;
-    string wn;
-};
-typedef struct GST gst;
+
+// typedef struct GST gst;
 
 const int osnma_start=138;
-const int mack_start=146;
-const int tagSize=40;
-int len_tow=20;
-const int len_gst=32;
 
-vector<string> getKey(vector<page_struct> &cur_page);
-int getPageNumInSub(int);
-string getMackInPage(string);
-vector<string> getAuthData(int prn, vector<page_struct> &cur_page);
-vector<gst> getGst(vector<page_struct> &cur_page);
-vector<string> getNavData(vector<page_struct> &cur_page);
-vector<string> computeTag(vector<string>,vector<string>);
-void fillTag(vector<string>,vector<page_struct> &cur_page);
-int getNumberPrn(vector<int> &cur_prn);
+const int tagSize=40;
+
+//int getNumberPrn(vector<int> &cur_prn);
 
 //----------------------hex and bin-----------------------------
 char binary4ToHex(const string& bin4) {
@@ -215,7 +216,6 @@ char binary4ToHex(const string& bin4) {
     auto it = binToHex.find(bin4);
     return (it != binToHex.end()) ? it->second : '0'; 
 }
-string hexToBinary(const string& hexStr);
 
 string hexToBinary(const string& hexStr) {
     const int hexLength = 60;
@@ -407,93 +407,12 @@ private:
 };
 
 // -------------------- HMAC-SHA256 --------------------
-std::vector<uint8_t> hmac_sha256(const std::vector<uint8_t> &key, const std::vector<uint8_t> &message) {
-    const size_t BLOCK_SIZE = 64;
-    std::vector<uint8_t> k_pad(BLOCK_SIZE, 0);
 
-    if (key.size() > BLOCK_SIZE) {
-        SHA256 sha;
-        uint8_t hashedKey[32];
-        sha.update(key.data(), key.size());
-        sha.final(hashedKey);
-        std::copy(hashedKey, hashedKey + 32, k_pad.begin());
-    } else {
-        std::copy(key.begin(), key.end(), k_pad.begin());
-    }
 
-    std::vector<uint8_t> o_key_pad = k_pad;
-    std::vector<uint8_t> i_key_pad = k_pad;
-    for (size_t i = 0; i < BLOCK_SIZE; ++i) {
-        o_key_pad[i] ^= 0x5c;
-        i_key_pad[i] ^= 0x36;
-    }
 
-    SHA256 shaInner;
-    shaInner.update(i_key_pad.data(), i_key_pad.size());
-    shaInner.update(message.data(), message.size());
-    uint8_t innerHash[32];
-    shaInner.final(innerHash);
 
-    SHA256 shaOuter;
-    shaOuter.update(o_key_pad.data(), o_key_pad.size());
-    shaOuter.update(innerHash, 32);
-    uint8_t finalHash[32];
-    shaOuter.final(finalHash);
-
-    return std::vector<uint8_t>(finalHash, finalHash + 32);
-}
-std::vector<uint8_t> hexstr_to_bytes(const std::string& hex) {
-    std::vector<uint8_t> bytes;
-    if (hex.size() % 2 != 0) return bytes;  
-
-    for (size_t i = 0; i < hex.size(); i += 2) {
-        uint8_t byte = std::stoi(hex.substr(i, 2), nullptr, 16);
-        bytes.push_back(byte);
-    }
-    return bytes;
-}
-std::vector<uint8_t> bitstring_to_bytes(const std::string& bits) {
-    std::vector<uint8_t> bytes;
-    size_t len = bits.size();
-
-    for (size_t i = 0; i < len; i += 8) {
-        std::string byte_str = bits.substr(i, std::min((size_t)8, len - i));
-        while (byte_str.size() < 8) byte_str += '0';  
-        uint8_t byte = static_cast<uint8_t>(std::stoi(byte_str, nullptr, 2));
-        bytes.push_back(byte);
-    }
-
-    return bytes;
-}
-std::string macToString(const std::vector<uint8_t>& mac) {
-    std::ostringstream oss;
-    for (size_t i = 0; i < mac.size(); ++i) {
-        if (i > 0) oss;  
-        oss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(mac[i]);
-    }
-    return oss.str();
-}
 //-------------------------hash  256-----------------------------
-void fixNavPage(int a,vector<page_struct> &cur_prn);
-int getNumberPrn(vector<int> &cur_prn)
-{
-    int prn[50]={0};
-    for(int i = 0;i<100;i++)
-    {
-    	int s=nav_page[i].prn;
-    	prn[s]++;
-    }
-    int cont=0;
-    for(int i = 0;i<50;i++)
-    {
-    	if(prn[i]!=0)
-    	{
-    	    cont++;
-    	    cur_prn.push_back(i);
-    	}
-    }
-    return cont;
-}
+
 void getNavMsg()
 {
     string line;
@@ -563,442 +482,10 @@ void getWeekTow()
     }
     
 }
-void  fillOSNMA(int prn,vector<page_struct> &cur_page)
-{
-    string line1;
-    ifstream inf;
-    inf.open(PATH); //Read the original OSNMA file
-	
-    vector<page_struct> osnma_r;
-     
-    while(getline(inf,line1))
-    {  
-    	
-    
-        std::vector<std::string> columns;
-        std::stringstream ss(line1);
-        std::string item;
-        
-        while(std::getline(ss, item, ','))
-        {
-            columns.push_back(item);
-        }
-        if(stoi(columns[0])<static_cast<int>(start_time))
-        {
-        	//cout<<columns[0]<<","<<start_time<<endl;
-        	continue;
-        }
-        
-        if (stoi(columns[2])!= prn)
-            continue;
-        
-        else // Extract the page corresponding to the satellite
-        {
-            page_struct a;
-            a.tow = stod(columns[0]);
-            a.wn = stoi(columns[1]);
-            a.prn = stoi(columns[2]);
-            columns[3].pop_back();
-            a.navMsg = columns[3];
-            
-            osnma_r.push_back(a);
-            
-           
-        }
-    }
-    inf.close();
-    // show(osnma_r);
+// ------------------------------ADKD4------------------------
 
-    //get the osnma data from osnam_r and fill it in osnma_c interesting
-    for(int i=0;i<cur_page.size();i++) 
-    {
-   // cout<<osnma_r[i].navMsg<<"fillOSNMA"<<endl;
-        //cout<<osnma_r[i].navMsg<<endl;
-        string nav_mas_bing_r=hexToBinary(osnma_r[i].navMsg);
-        
-        string nav_mas_bing_c=hexToBinary(cur_page[i].navMsg);
-        string osnma_bin=nav_mas_bing_r.substr(138,40);  
+// ------------------------------ADKD12------------------------
 
-        nav_mas_bing_c.replace(138,40,osnma_bin);
-        
-        string nav_mes_hex=binaryToHexBitset(nav_mas_bing_c);
-        //exit(1);
-        cur_page[i].navMsg=nav_mes_hex;
-        
-        
-    }
-}
-void fixNavPage(int a,vector<page_struct> &cur_prn)
-{
-    for(int i =0 ;i<nav_page.size();i++)
-    {
-    	if(nav_page[i].prn==a)
-    	{
-    		cur_prn.push_back(nav_page[i]);
-    		//cout<<nav_page[i].tow<<"++++++++++"<<endl;
-    	}
-    }
-}
-int getPageNumInSub(int tow)
-{
-    return ((tow-static_cast<int>(start_time))/2)%15;
-}
-string getMackInPage(string nav_msg_hex)  // in nav_msg
-{
-    string nav_msg_bin=hexToBinary(nav_msg_hex);
-    string mack_bin=nav_msg_bin.substr(mack_start,32);
-    string mack_hex=binaryToHexBitset(mack_bin);
-
-    return mack_hex;
-}
-vector<string> getKey(vector<page_struct> &cur_page)
-{
-    //In each subframe, the position of the key is (10,15), (16,144)
-    vector<string> teslaKey;
-    string mack;
-  
-    for(int i=0;i<cur_page.size();i++)
-    {
-        int tow=cur_page[i].tow;
-        if(getPageNumInSub(tow)>=10&&getPageNumInSub(tow)<=14) //Starting from here, extract tags for the next five pages
-        {
-            string temp=getMackInPage(cur_page[i].navMsg);
-            
-            mack.append(temp);
-        }
-        if(getPageNumInSub(tow)==14)
-        {   
-            teslaKey.push_back(mack);
-            mack.clear();
-        }
-    }
-
-    vector<string> teslaKey_bit;
-    // teslaKey.erase(teslaKey.begin());
-    // teslaKey.erase(teslaKey.begin());
-    while(!teslaKey.empty())
-    {
-        string key=teslaKey.front();
-        key=key.substr(4,32);
-        //cout<<"key:"<<key<<endl;
-        teslaKey_bit.push_back(key);
-        teslaKey.erase(teslaKey.begin());
-    }
-    return teslaKey_bit;
-}
-vector<string> getNavData(vector<page_struct> &cur_page)
-{   
-
-    vector<string> words(5);
-
-    string mack;
-
-
-    for (size_t i = 0; i < cur_page.size(); i++)
-    {
-        int tow=static_cast<int>(cur_page[i].tow);
-        if(getPageNumInSub(tow)==10)
-        {
-            string navBin=hexToBinary(cur_page[i].navMsg);
-            string s1=navBin.substr(8,106)+navBin.substr(122,14);
-            //cout<<s1<<endl;
-            words[0]=s1;
-        }
-        if(getPageNumInSub(tow)==0)
-        {
-            string navBin=hexToBinary(cur_page[i].navMsg);
-            string s1=navBin.substr(8,106)+navBin.substr(122,14);
-            words[1]=s1;
-        }
-        if (getPageNumInSub(tow)==11)
-        {
-            string navBin=hexToBinary(cur_page[i].navMsg);
-            string s1=navBin.substr(8,106)+navBin.substr(122,16);
-            words[2]=s1;
-        }
-        if (getPageNumInSub(tow)==1)
-        {
-            string navBin=hexToBinary(cur_page[i].navMsg);
-            string s1=navBin.substr(8,106)+navBin.substr(122,14);
-            words[3]=s1;
-        }
-        if (getPageNumInSub(tow)==12)
-        {
-            string navBin=hexToBinary(cur_page[i].navMsg);
-            string s1=navBin.substr(8,67);
-            words[4]=s1;
-        }
-        if (words[4]!="")
-        {
-            return words;
-        }
-    }
-
-    return words;
-}
-vector<gst> getGst(vector<page_struct> &cur_page)
-{
-    vector<gst> GST;   
-    for (size_t i = 0; i < cur_page.size(); i++)
-    {
-        int tow = static_cast<int>(cur_page[i].tow);
-        if((tow>static_cast<int>(start_time)+28)&&(tow-(static_cast<int>(start_time)+30))%30==0)
-        {
-            gst temp;
-            temp.tow=to_string(tow-1);
-            //cout<<columns[0]<<endl;
-            temp.wn=to_string(cur_page[i].wn);
-            GST.push_back(temp);
-        }
-    }
-    return GST;
-}
-vector<string> getAuthData(int prn, vector<page_struct> &cur_page) //Should return a binary string
-{
-    //What Tag0 needs，self.prn_a + self.gst_subframe.bitarray + BitArray(uint=self.ctr,length=8) + self.nma_status + self.nav_data.nav_data_stream
-    vector<gst> GST=getGst(cur_page);
-    //  for(int i=0;i<GST.size();i++)
-    // {
-    //     cout<<GST[i].tow<<","<<GST[i].wn<<endl;
-    // }
-    vector<string> navData = getNavData(cur_page);
-
-    vector<string> authData;
-    string navDataBin;
-    for(int i=0;i<navData.size();i++)
-    {   
-        navDataBin+=navData[i];
-    }
-    //cout<<navDataBin<<endl;
-    for(int i=0;i<subNub;i++)
-    {
-        string temp;
-        string sss="";
-        
-        if(prn<10)
-        {
-        	sss="0"+to_string(prn);
-        }
-        else if(prn<30)
-        {
-        	sss=to_string(prn-6);
-        }
-        else
-        {
-        sss=to_string(prn-12);}
-        
-        string prn_a=hexToBinary(sss);
-        string bitAr=hexToBinary("01");
-        string nav_status="01";
-        bitset<len_gst> bitArray((stoi(GST[i].wn) << len_tow | stoi(GST[i].tow)));
-        string gst_bin=bitArray.to_string();
-        // cout<<gst_bin<<endl;
-        temp=prn_a+gst_bin+bitAr+nav_status+navDataBin;
-        authData.push_back(temp);
-        //cout<<temp<<endl;
-    }
-
-    return authData;
-}
-vector<string> computeTag(vector<string> key,vector<string> authData) //
-{
-    vector<string> tagList;
-    for(int i=0;i<subNub;i++)
-    {
-        vector<uint8_t>k1=hexstr_to_bytes(key[i]);
-
-        vector<uint8_t>d1=bitstring_to_bytes(authData[i]);
-
-        auto mac= hmac_sha256(k1,d1);
-
-        string temp=macToString(mac);
-        temp=temp.substr(0,10);
-       // cout<<temp<<endl;
-        tagList.push_back(temp);
-    }
-    return tagList;
-}
-void fillTag(vector<string> tagList,vector<page_struct> &cur_page)
-{
-    for (size_t i = 0; i < cur_page.size(); i++)
-    {
-        int tow=static_cast<int>(cur_page[i].tow);
-        // cout<<tow<<endl;
-        //cout<<"cur_page[i].navMsg:1"<<cur_page[i].navMsg<<endl;
-        if(getPageNumInSub(tow)==0&&tow>start_time) // 
-        {
-            
-            string navBin=hexToBinary(cur_page[i].navMsg);
-            string osnma_bin = navBin.substr(138, 40);
-
-
-int zero_count = count(osnma_bin.begin(), osnma_bin.end(), '0');
-if (zero_count > 30) {
-    continue; 
-}
-            string temp=navBin.substr(0,146);
-            string tag=hexToBinary(tagList[0]);
-            string tag1=tag.substr(0,32);
-            string tag2=tag.substr(32);
-
-            temp+=tag1;
-            temp+=navBin.substr(178);
-            // cout<<temp<<endl;
-
-            cur_page[i].navMsg=binaryToHexBitset(temp); //The current index i has been filled in, now fill in i+1
-            if(i+1>=cur_page.size())
-            {
-                return;
-            }
-            
-            tow=static_cast<int>(cur_page[i+1].tow);
-
-            navBin=hexToBinary(cur_page[i+1].navMsg);
-            temp=navBin.substr(0,146);
-            temp+=tag2;
-            temp+=navBin.substr(154);
-            cur_page[i+1].navMsg=binaryToHexBitset(temp); 
-            
-            
-            if(!tagList.empty())
-            {
-                tagList.erase(tagList.begin());
-            }
-            else{
-                return;
-            }
-        }
-        //cout<<"cur_page[i].navMsg:2"<<cur_page[i].navMsg<<endl;
-    }
-}
-void binStringToBinInt(const std::string &binaryStr, int *bitArray) {
-    if (binaryStr.length() != 240) {
-        std::cerr << "Error: Input string must be exactly 240 bits long." << std::endl;
-        return;
-    }
-
-    for (int i = 0; i < 240; ++i) {
-        if (binaryStr[i] == '0') {
-            bitArray[i] = 0;
-        } else if (binaryStr[i] == '1') {
-            bitArray[i] = 1;
-        } else {
-            std::cerr << "Error: Invalid character '" << binaryStr[i] << "' at position " << i << std::endl;
-            return;
-        }
-    }
-}
-void trsData(int *page,int *data)
-{
-    
-
-    for(int i=0;i<114;i++)
-    {
-        data[i]=page[i];
-    }
-    for (int i=114;i<196;i++)
-    {
-        data[i]=page[i+6];
-    }
-    
-}
-
-void encode_int_to_bits(int *page, unsigned int value, int num_bits) {
-    // Make sure the value fits within the specified number of bits
-    value &= (1 << num_bits) - 1;
-
-    // for (int i = 0; i < num_bits; ++i) {
-    //     page[(num_bits - i - 1)] = ((((value >> i) & 1) == 1) ? 1:0);
-    // }
-    int index = 202;
-
-    for (int j = num_bits-1; j >= 0; j--)
-    {
-        page[index] = BIT_ISSET(value, j);
-        index++;
-    }
-}
-unsigned int Crc24qEncode1(int *BitStream, int Length)
-{
-    unsigned int crc_result = 0;
-    unsigned char dataByte = 0;
-
-    int j;
-    for (j = 0; j < Length; j++)
-    {
-        if (j > 0 && j % 8 == 0)
-        {
-            crc_result = ((crc_result | dataByte) << 8) ^ Crc24q[(crc_result >> 24) & 0xFF];
-            dataByte = 0;
-        }
-
-        dataByte = (dataByte << 1) | (char)BitStream[j];
-    }
-
-    unsigned char trail_bits_count = j % 8;
-    dataByte <<= (8U - trail_bits_count);
-    crc_result = ((crc_result | dataByte) << trail_bits_count) ^ Crc24q[(crc_result >> (32 - trail_bits_count)) & 0xFF];
-
-    for (int i = 0; i < 3; i++)
-    {
-        crc_result = (crc_result << 8) ^ Crc24q[(crc_result >> 24) & 0xFF];
-    }
-    return (crc_result >> 8);
-}
-void fillCrc(vector<page_struct> &cur_page)
-{
-    for (size_t i = 0; i < cur_page.size(); i++)
-    {
-        //cout<<"cur_page[i].navMsg:"<<cur_page[i].navMsg<<endl;
-        string navBin=hexToBinary(cur_page[i].navMsg);
-        int binBit[240];
-        int data[196]={};
-        binStringToBinInt(navBin,binBit);
-        trsData(binBit,data);
-        unsigned int crcq = Crc24qEncode1(data, 196);
-        encode_int_to_bits(binBit,crcq,24);
-        navBin.clear();
-        for(int i=0;i<240;i++)
-        {
-            //cout<<binBit[i];
-            if(binBit[i]==0)
-            {
-                navBin.push_back('0');
-            }
-            else
-            {
-                navBin.push_back('1');
-            }
-        }
-        string navdata=binaryToHexBitset(navBin);
-        cur_page[i].navMsg=navdata;
-    }
-}
-void singleIn(int a,vector<page_struct> cur_page)
-{
-    for (size_t i = 0; i < nav_page.size(); i++)
-    {
-        if (nav_page[i].prn==a&&static_cast<int>(nav_page[i].tow)>start_time-1)
-        {
-           
-            
-            for (size_t j = 0; j < cur_page.size(); j++)
-            {
-                int tow1=static_cast<int>(nav_page[i].tow);
-                int tow2=static_cast<int>(cur_page[j].tow);
-                
-                if(tow1==tow2)
-                {
-                      nav_page[i].navMsg=hexToBinary(cur_page[j].navMsg);
-                }
-
-            }
-            
-        }
-
-        
-    }
-}
 void show2(vector<page_struct> nav_ss)
 {
     for(int i=0;i<nav_ss.size();i++)
@@ -1007,6 +494,49 @@ void show2(vector<page_struct> nav_ss)
     }
     cout<<"----------------2----------------"<<endl;
 }
+
+void fillmecseq(vector<string> macseq, vector<page_struct> &nav_page) {
+    for (size_t i = 0; i < nav_page.size(); i++) {
+        int tow = static_cast<int>(nav_page[i].tow);
+        if (getPageNumInSub(tow) == 0 && tow > start_time) // 成功，这是一个开头
+        {
+            i++;
+            string navBin= hexToBinary(nav_page[i].navMsg);
+            string macBin= hexToBinary(macseq[0]);
+
+            //cout << "填充前的navMsg: " << nav_page[i].navMsg << endl;
+
+            //cout<< "填充的macBin: " << macseq[0] << endl;
+
+            int start = 154; // 你的开始位置，比如 Python 里的 146+8
+            navBin.replace(start, macBin.size(), macBin);
+            string navHex= binaryToHexBitset(navBin);
+	    nav_page[i].navMsg=navHex;
+            
+            macseq.erase(macseq.begin());
+            if(macseq.empty()) return;
+        }
+        
+    }
+}
+void printSequence(const vector<vector<string>>& seq) {
+	
+    cout<<"MAC Lookup Table (MACLT)::"<<endl;
+    if (seq.empty()) {
+        cout << "❌ 未找到对应ID的数据！" << endl;
+        return;
+    }
+
+    for (const auto& row : seq) {
+        for (const auto& s : row) {
+            cout << s << " ";
+        }
+        cout << endl;
+    }
+}
+
+
+
 int main(int argc, char *argv[])
 {
     if (argc < 3)
@@ -1099,6 +629,7 @@ int main(int argc, char *argv[])
             }
 
         case 't':
+        
             sscanf(optarg, "%d/%d/%d,%d:%d:%lf", &t0.y, &t0.m, &t0.d, &t0.hh, &t0.mm,
                    &t0.sec);
             if (t0.y <= 1980 || t0.m < 1 || t0.m > 12 || t0.d < 1 || t0.d > 31 ||
@@ -1108,12 +639,16 @@ int main(int argc, char *argv[])
                 printf("ERROR: Invalid date and time.\n");
                 exit(1);
             }
+            
             t0.sec = floor(t0.sec);
             date2gal(&t0, &s.opt.g0);
             break;
 
         case 'd':
             duration = atof(optarg);
+
+            numSub = static_cast<int>(duration);
+
             s.opt.iduration = (int)(duration * 10.0 + 0.5);
             break;
 
@@ -1186,6 +721,8 @@ int main(int argc, char *argv[])
     }
 	printf("\nCreating Galileo task...\n");
     // Initialize simulator
+    numSub=numSub/30;
+    	//cout<<"numSub:"<<numSub<<endl;
     init_sim(&s);
     sim_t s2=s;
     //cout<<"--------------"<<cur_wn<<endl;
@@ -1193,20 +730,68 @@ int main(int argc, char *argv[])
     galileo_task1(&s2);
 
     //getNavMsg(); //getpage
-   // cout<<PATH<<endl;
-    
+   //cout<<PATH<<endl;
+    //cout<<"----asdasdas-------"<<cur_wn<<endl;
     vector<int> cur_prn;
     //cout<<nav_page.size()<<endl;
-   // show2(nav_page);
+   //show2(nav_page);
     int prnNum=getNumberPrn(cur_prn);
+    cout<<"prnNum: "<<prnNum<<endl;
     
+    
+        size_t pos = PATH.find_last_of('/');
+
+    // 2. 提取文件名
+    string filename = PATH.substr(pos + 1);
+
+    // 3. 去掉前两个字符（"07"）
+    if (filename.size() >= 2) {
+        filename =  filename.substr(0, 2);
+    }
+    //cout <<"filename :" <<filename << endl;
+   int prrn;
+   
+   if(filename == "07"){
+   	prrn=8;
+   }
+   else if(filename == "16"){
+   	prrn=2;
+   }
+   else{
+   	prrn=30;
+   }
+    
+    
+    vector<KeyItem> key= getKeyItem(prrn,PATH);
+    
+   for (size_t i = 0; i < key.size(); i++)
+   {
+    /* code */
+      //cout<<"key: "<<key[i].key<<"  Tow: "<<key[i].firstTow<<endl;
+   }
     
     for(int i=0;i<prnNum;i++)
     {
        //cout<<cur_prn[i]<<endl;
-       nav_page.erase(nav_page.begin());
+       
     }
-    cout<<"Generate Galileo I/NAV message ... "<<endl;
+    cout << "selected PRN :[";
+	for (int i = 0; i < prnNum; i++)
+	{
+	    cout << cur_prn[i];
+	    nav_page.erase(nav_page.begin());
+	    if (i != prnNum - 1)
+		cout << ",";
+	}
+	cout << "]" << endl;
+            //cout<<"---------------------------------------------"<<endl;
+    
+        cout<<"================= OSNMA Configuration ================="<<endl;
+
+    int fl=0;
+
+    
+
     for(int i=0;i<prnNum;i++)
     {
     	
@@ -1214,32 +799,143 @@ int main(int argc, char *argv[])
     	
     	//cout<<"Generate navigation data for prn "<<prn<<endl;
     	vector<page_struct> cur_page;
-    	//cout<<"ssssssssssssssssssssss"<<endl;
+    
     	fixNavPage(prn,cur_page);
+	
+    	fillOSNMA(prrn,cur_page,PATH);
+    	if(fl==0){
+	getDic(cur_page);
+	fl=1;
+	
+	findSeqByID(dic);
+	printSequence(mltSequence);
+	KL=ks_num[KS];
+	TL=ts_num[TS-5];
+	TL=TL;
+	cout<<"\nMessage Authentication:"<<endl;
+	cout<<"Hash Function :SHA-256"<<endl;
+	cout<<"Key_size      :"<<KL<<" bits"<<endl;
+	cout<<"Tag_size      :"<<TL<<" bits"<<endl;
+	//cout<<"HF: "<<HF<<"MF: "<<MF<<"dic: "<<dic<<" KL:"<<KL<<" TL:"<<TS<<endl;
+		    cout<<"======================================================\n\n"<<endl;
+	    cout<<"=========== Galileo I/NAV Message Generation =========="<<endl;
+	    cout<<"[INFO] Initializing navigation message generation...\n"<<endl;
 
-    	fillOSNMA(prn,cur_page);
-    	cout<<"Generate navigation message for prn :"<<prn<<endl;
-   	//if(prn==8)
-   	// show(cur_page);
+	}
+	
+	cleanTag(cur_page);
+	if(prrn!=30){
+		fillTagInfo(prn,cur_page);
+	}
+    	addWord10(cur_page);
+    	cout<<"---------------------------------------------"<<endl;
+    	cout<<"[PRN "<<prn<<"]"<<endl;
+    	cout<<"- Loading HKROOT and TESLA Key from auxiliary OSNMA data"<<endl;
+   	if(duration>361)
+   	{
+   		cout<<"- Generating authentication tags (ADKD: 0, 4, 12)"<<endl;
+   	}
+   	else{
+   	cout<<"- Generating authentication tags (ADKD: 0, 4)"<<endl;
+   	
+   	}
+   	
         vector<string> teslaKey=getKey(cur_page);
+        //----------------------mac-------------------------
+        vector<string> teslaKeyformac=teslaKey;
+        
+        teslaKeyformac.erase(teslaKeyformac.begin());
+        
+        vector<string> macauthData=getmacauth(prn,cur_page);
+        
+        vector<string> macList=commac(teslaKeyformac,macauthData);
+
+	macList.erase(macList.begin());
+	fillmecseq(macList,cur_page);
+	
+        //----------------------mac-------------------------
         teslaKey.erase(teslaKey.begin());
         teslaKey.erase(teslaKey.begin());
+
+        vector<string> authDataADKD4 = getAuthDataForADKD4(prn,cur_page);
+        vector<string> teslaKeyforADKD4=teslaKey;
+        
+        vector<string> KeyforADKD4=keyforADKD4(key,start_time);
+        
+	
+		teslaKeyforADKD4.erase(teslaKeyforADKD4.begin());
+	
+	
+	//cout<<teslaKeyforADKD4.size()<<"++++++"<<KeyforADKD4.size()<<endl;
+	for(int i = 0; i < teslaKeyforADKD4.size(); i++) {
+	  // cout<<"1:"<<teslaKeyforADKD4[i]<<endl;
+	   	   //cout<<"2:"<<KeyforADKD4[i]<<endl;
+	}
+	
+	
+	for(int i = authDataADKD4.size() - 1; i >= 0; i--) {
+	    if(i % 2 == 1) { // 奇数下标
+		teslaKeyforADKD4.erase(teslaKeyforADKD4.begin() + i);
+		authDataADKD4.erase(authDataADKD4.begin() + i);
+		KeyforADKD4.erase(KeyforADKD4.begin() + i);
+	    }
+	}
+	//cout<<"authchangdu:"<<authDataADKD4.size()<<","<<KeyforADKD4.size()<<endl;
+	
+	vector<string> tagListADKD4=computeTagADKD4(KeyforADKD4,authDataADKD4);
+	if(dic==33)
+	{
+		tagListADKD4.insert(tagListADKD4.begin(), "bfab8f967d");
+	}
+	//-----------------------ADKD12-----------------------
+
+        
+	vector<string> teslaKeyforADKD12=keyforADKD12(key,start_time);
+
+	    for (size_t i = 0; i < teslaKeyforADKD12.size(); i++)
+	   {
+	    /* code */
+		//cout<<"key: "<<key12[i]<<endl;
+	   }
+	   
+        
+	vector<string> authDataADKD12=getAuthDatADKD12(cur_page,prn);
+        
+	
+	
+	vector<string> tagListADKD12=computeTagADKD12(teslaKeyforADKD12,authDataADKD12);
+	
+     
+    	for(int i = tagListADKD12.size() - 1; i >= 0; i--) {
+	    if(i % 2 == 1) { // 奇数下标
+		//tagListADKD12.erase(tagListADKD12.begin() + i);
+	    }
+	}
+	fillTagADKD12(cur_page,tagListADKD12);
+	
+	//-----------------------ADKD12-----------------------
+
 
         vector<string> authData=getAuthData(prn ,cur_page);
-
-        vector<string> tagList=computeTag(teslaKey,authData);
-
-        fillTag(tagList,cur_page);
-        
-        fillCrc(cur_page);
 	
+        vector<string> tagList=computeTag(teslaKey,authData);
+        
+	fillTagADKD4(cur_page,tagListADKD4);
+	
+	 
+        fillTag(tagList,cur_page);
+        //cout<<"Test:"<<tagList.size()<<endl;
+        //show2(cur_page);
+        fillCrc(cur_page);
+        
+cout<<" ✔ Completed"<<endl;
         singleIn(prn,cur_page);
         
     }
     cout<<"---------------------------------------------"<<endl;
     for(int i=0;i<prnNum;i++)
     {
-    	cout<<"Generate osnma data for prn "<<cur_prn[i]<<endl;
+    	//cout<<"Generate osnma data for prn "<<cur_prn[i]<<endl;
     }
     //cout<<start_time<<"++++++++++++++++"<<endl;
     

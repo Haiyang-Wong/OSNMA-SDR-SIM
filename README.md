@@ -2,7 +2,7 @@
 
 OSNMA-SDR-SIM generates **OSNMA-enabled** Galileo baseband signal data streams, which can be converted to RF using software-defined radio (SDR) platforms.
 
-- Galileo E1B/C signal generation
+- Galileo E1-B signal generation
 - OSNMA data generation
 - USRP TX support 
 - File sink
@@ -21,13 +21,8 @@ sudo apt-get install -y libuhd-dev uhd-host gnss-sdr g++ libncurses-dev cmake pk
 pip3 install pynput
 ```
 
-For evaluation, you will also need **GNSS-SDR** (https://gnss-sdr.org/) and **OSNMAlib** (https://github.com/Algafix/OSNMA).
+For evaluation, you need **GNSS-SDR** (https://gnss-sdr.org/) and **OSNMAlib** (https://github.com/Algafix/OSNMA). For more installation options, please check their website.
 
-GNSS-SDR installation with package manager on most Linux distros
-```
-sudo apt install gnss-sdr
-```
-For more installation options please check their website.
 ## Installation
 ```
 git clone https://github.com/Haiyang-Wong/OSNMA-SDR-SIM.git
@@ -57,7 +52,7 @@ Options:
   -v <verbose>     Enable verbose output (default: false)
 ```
 
-Executing the following command will generate a OSNMA-enabled Galileo signal file for the location -6,51,100 starting from 2023/08/16,05:00:01. The generated samples will be stored in **osnmasim.bin** as interleaved shorts (I<sub>1</sub>Q<sub>1</sub>, I<sub>2</sub>Q<sub>2</sub>, ... , I<sub>n</sub>Q<sub>n</sub>) @ 2.6e6 samples/sec
+Executing the following command will generate a OSNMA-enabled Galileo signal file for the location -6,51,100 starting from 2023/08/16,05:00:01. The generated samples will be stored in **osnmasim.bin** as interleaved shorts (I<sub>1</sub>Q<sub>1</sub>, I<sub>2</sub>Q<sub>2</sub>, ... , I<sub>n</sub>Q<sub>n</sub>), with a sampling rate of 2.6 MHz.
 
 ```
 ./osnma-sdr-sim -l -6,51,100 -t 2023/08/16,05:00:01 -s ../16_AUG_2023_GST_05_00_01_fixed.csv  -e ../rinex_files/20230816.rnx -o ../osnmasim.bin -U 1 -b 0 -d 360
@@ -65,7 +60,7 @@ Executing the following command will generate a OSNMA-enabled Galileo signal fil
 
 ## Evaluation
 
-The generated Galileo signal has been tested with GNSS-SDR and OSNMAlib. For OSNMAlib, you need to annotate the dummy page detection code, as shown below.
+The generated Galileo signal has been tested with GNSS-SDR and OSNMAlib. For GNSS-SDR, we provide different conf files for offline or real-time processing. For OSNMAlib, you need to annotate the dummy page detection code, as shown below.
 
 ```python
 #if self._filter_page(page):
@@ -73,11 +68,17 @@ The generated Galileo signal has been tested with GNSS-SDR and OSNMAlib. For OSN
     #continue
 ```
 
-Here are evaluation results.
+In addition, this project provides several public key files associated with OSNMA, please adjust it in the OSNMAlib. Here are evaluation results.
 
 ![](gnss-output.png)
 
 ![](osnmaLib-output.png)
+
+### Future work
+
++ Design and implement **cross-authentication**
++ Generate and integrate **E5b-I signals**
++ User interaction, configurable
 
 ## Acknowledgements
 

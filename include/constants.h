@@ -217,7 +217,14 @@ extern int prnTable[40];
 extern std::string PATH;
 extern double start_time;
 extern int cur_wn;
-
+extern int numSub;
+extern int HF;
+extern int MF;
+extern int dic;
+extern int KS;
+extern int TS;
+extern int KL;
+extern int TL;
 #define COS_TAB_LENGTH 512
 
 static const int cosTable512[COS_TAB_LENGTH] = {
