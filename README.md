@@ -52,10 +52,10 @@ Options:
   -v <verbose>     Enable verbose output (default: false)
 ```
 
-Executing the following command will generate a OSNMA-enabled Galileo signal file for the location -6,51,100 starting from 2023/08/16,05:00:01. The generated samples will be stored in **osnmasim.bin** as interleaved shorts (I<sub>1</sub>Q<sub>1</sub>, I<sub>2</sub>Q<sub>2</sub>, ... , I<sub>n</sub>Q<sub>n</sub>), with a sampling rate of 2.6 MHz.
+Executing the following command will generate a OSNMA-enabled Galileo signal file for the location 20,-51,100 starting from 2023/10/07,14:45:01. The generated samples will be stored in **osnmasim.bin** as interleaved shorts (I<sub>1</sub>Q<sub>1</sub>, I<sub>2</sub>Q<sub>2</sub>, ... , I<sub>n</sub>Q<sub>n</sub>), with a sampling rate of 2.6 MHz.
 
 ```
-./osnma-sdr-sim -l -6,51,100 -t 2023/08/16,05:00:01 -s ../16_AUG_2023_GST_05_00_01_fixed.csv  -e ../rinex_files/20230816.rnx -o ../osnmasim.bin -U 1 -b 0 -d 360
+./osnma-sdr-sim -l 20,-51,100 -t 2023/10/07,14:45:01 -s ../auxiliary_osnma/07_OCT_2023_GST_14_45_01_fixed.csv  -e ../rinex_files/2023_10_07.rnx -o ../osnmasim.bin -U 1 -b 0 -d 480
 ```
 
 ## Evaluation
@@ -78,7 +78,7 @@ In addition, this project provides several public key files associated with OSNM
 
 + Design and implement **cross-authentication**
 + Generate and integrate **E5b-I signals**
-+ User interaction, configurable
++ User interaction, customizable configuration
 
 ## Acknowledgements
 
