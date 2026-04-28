@@ -475,9 +475,7 @@ void fillTagInfo(int prn ,vector<page_struct>& cur_page)
                     sss=to_string(prn-12);
                 }
                 
-                navBin.replace(162,8,hexToBinary(sss));
-                navBin.replace(166,4,"1100");
-                navBin.replace(170,4,"0001");
+                navBin.replace(162,16,hexToBinary(sss) + "1100" + "0001");
                 cur_page[i].navMsg=binaryToHexBitset(navBin);  
             }
         }

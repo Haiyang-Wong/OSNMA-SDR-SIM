@@ -31,11 +31,18 @@
 int samples_per_code;
 std::vector<int> current_eph;
 std::vector<int> old_eph;
+vector<int> candidate_prn_list;
+vector<int> initial_visible_prn_list;
+vector<vector<int>> nearest_prn_by_visible;
+int initial_visible_prn_flag[MAX_SAT + 1] = {0};
+
 bool stop_signal_called_gal_task = false;
+
 bool use_cursors = true;
 bool advance_fptr = false;
 vector<page_struct> nav_page;
 vector<page_struct> nav_page_2;
+
 FILE *TV_ptr;
 FILE *TV_ptrs_sv[MAX_SAT];
 int prnTable[40]={0};
@@ -375,9 +382,108 @@ cout<<""<<endl;
     dt = 0.10000002314200000;
     grx = incGalTime(grx, dt);
 
-    init_channel(chan, allocatedSat);
+ init_channel(chan, allocatedSat);
 
     allocateChannel(chan, eph_vector, iono, grx, xyz[0], elvmask, &chn_prn_map, current_eph, allocatedSat);
+
+    candidate_prn_list.clear();
+    initial_visible_prn_list.clear();
+    nearest_prn_by_visible.clear();
+    for (int flag_i = 0; flag_i <= MAX_SAT; flag_i++)
+        initial_visible_prn_flag[flag_i] = 0;
+
+    vector<array<double, 3>> candidate_pos;
+    for (sv = 0; sv < MAX_SAT; sv++)
+    {
+        if (!eph_vector[sv].size())
+            continue;
+        if (current_eph[sv] < 0)
+            continue;
+
+        double pos[3], vel[3], clk[3];
+        eph = eph_vector[sv][current_eph[sv]];
+        satpos(eph, grx, pos, vel, clk);
+        array<double, 3> sat_pos = {{pos[0], pos[1], pos[2]}};
+        candidate_prn_list.push_back(eph.svid);
+        candidate_pos.push_back(sat_pos);
+    }
+
+    for (i = 0; i < MAX_CHAN; i++)
+    {
+        if (chan[i].prn > 0)
+        {
+            initial_visible_prn_list.push_back(chan[i].prn);
+            if (chan[i].prn <= MAX_SAT)
+                initial_visible_prn_flag[chan[i].prn] = 1;
+        }
+    }
+
+    for (size_t v = 0; v < initial_visible_prn_list.size(); v++)
+    {
+        int base_prn = initial_visible_prn_list[v];
+        int base_idx = -1;
+        for (size_t c = 0; c < candidate_prn_list.size(); c++)
+        {
+            if (candidate_prn_list[c] == base_prn)
+            {
+                base_idx = static_cast<int>(c);
+                break;
+            }
+        }
+
+        vector<pair<double, int>> distances;
+        if (base_idx >= 0)
+        {
+            for (size_t c = 0; c < candidate_prn_list.size(); c++)
+            {
+                if (candidate_prn_list[c] == base_prn)
+                    continue;
+
+                double dx = candidate_pos[base_idx][0] - candidate_pos[c][0];
+                double dy = candidate_pos[base_idx][1] - candidate_pos[c][1];
+                double dz = candidate_pos[base_idx][2] - candidate_pos[c][2];
+                distances.push_back(make_pair(dx * dx + dy * dy + dz * dz, candidate_prn_list[c]));
+            }
+        }
+
+        sort(distances.begin(), distances.end());
+        vector<int> nearest_row;
+        size_t neighbor_limit = neb_num > 0 ? static_cast<size_t>(neb_num) : 0;
+        for (size_t n = 0; n < distances.size() && n < neighbor_limit; n++)
+            nearest_row.push_back(distances[n].second);
+        nearest_prn_by_visible.push_back(nearest_row);
+    }
+
+    cout << "candidate PRN :[";
+    for (size_t c = 0; c < candidate_prn_list.size(); c++)
+    {
+        cout << candidate_prn_list[c];
+        if (c + 1 < candidate_prn_list.size())
+            cout << ",";
+    }
+    cout << "]" << endl;
+
+    cout << "initial visible PRN :[";
+    for (size_t v = 0; v < initial_visible_prn_list.size(); v++)
+    {
+        cout << initial_visible_prn_list[v];
+        if (v + 1 < initial_visible_prn_list.size())
+            cout << ",";
+    }
+    cout << "]" << endl;
+
+    cout << "nearest " << neb_num << " PRN by initial visible PRN:" << endl;
+    for (size_t v = 0; v < initial_visible_prn_list.size(); v++)
+    {
+        cout << "  " << initial_visible_prn_list[v] << " -> [";
+        for (size_t n = 0; n < nearest_prn_by_visible[v].size(); n++)
+        {
+            cout << nearest_prn_by_visible[v][n];
+            if (n + 1 < nearest_prn_by_visible[v].size())
+                cout << ",";
+        }
+        cout << "]" << endl;
+    }
 
     // for (i = 0; i < MAX_CHAN; i++)
     // {
@@ -508,30 +614,28 @@ cout<<""<<endl;
 
 	
             // fprintf(stderr, "\n");
-            for (i = 0; i < MAX_CHAN; i++)
+    if(static_cast<int>(grx.sec)%2!=0)
+    {
+        for (sv = 0; sv < MAX_SAT; sv++)
+        {
+            if (!eph_vector[sv].size())
+                continue;
+
+            if (current_eph[sv] < 0)
+                continue;
+
+            eph = eph_vector[sv][current_eph[sv]];
+            int index=getPrnIndex(eph.svid);
+
+            if(index >= 0 && prnTable[index]<static_cast<int>(grx.sec))//prnTable[index]<static_cast<int>(g.sec)
             {
-                if (chan[i].prn > 0)
-                {
-			
-			//cout<<"ss"<<endl;
-			if(static_cast<int>(grx.sec)%2==0)
-			{
-				continue;
-			}
-                       sv = chan[i].prn - 1;
-                       eph = eph_vector[sv][current_eph[sv]];
-                       int index=getPrnIndex(eph.svid);
-                       //cout<<eph.svid<<","<<index<<endl;
-   			//cout<<"prnTable[index]:"<<prnTable[index]<<" g.sec:"<<grx.sec<<"\n\r"<<endl;
-			if(prnTable[index]<static_cast<int>(grx.sec))//prnTable[index]<static_cast<int>(g.sec)
-   			{	
-   				//cout<<chan[i].prn<<"+++++++++++++++++"<<"\n\r"<<endl;
-   				generateINavMsg(grx, &chan[i], &eph, &iono);   
-   				prnTable[index]=static_cast<int>(grx.sec);
-    			}
-                       
-                }
+                channel_t nav_chan = {};
+                nav_chan.prn = eph.svid;
+                generateINavMsg(grx, &nav_chan, &eph, &iono);
+                prnTable[index]=static_cast<int>(grx.sec);
             }
+        }
+    }
 
         // Check and update ephemeris index and satellite allocation every 30 seconds
         igrx = (int)(grx.sec*10.0+0.5);
@@ -540,24 +644,15 @@ cout<<""<<endl;
 
             gal2date(&grx, &t_temp);
             obs_time = gps_time(&t_temp);
-            // cout << "All: " << grx.sec << " : " << g0.sec;
-            // for (int sv = 0; sv < MAX_SAT; sv++)
-            //     old_eph[sv] = current_eph[sv];
-
             for (int sv = 0; sv < MAX_SAT; sv++)
             {
                 current_eph[sv] = epoch_matcher(grx, eph_vector[sv], current_eph[sv]);
-                // if (current_eph[sv] != old_eph[sv])
-                //     cout << endl << "Changed eph for " << sv << " - " << current_eph[sv] << " : " << old_eph[sv] << endl;
+
             }
             allocateChannel(chan, eph_vector, iono, grx, xyz[iumd], elvmask, &chn_prn_map, current_eph, allocatedSat);
         }
 
         grx = incGalTime(grx, dt);
-
-        ////////////////////////////////////////////////////////////
-        // Write into FIFO
-        ///////////////////////////////////////////////////////////
 
         // Update receiver time
         if (use_bits_from_streamer)
@@ -621,12 +716,6 @@ cout<<""<<endl;
 
     if (debug)
         fclose(fp_debug);
-
-    // Process time
-  //  fprintf(stderr, "Process time = %.1f [sec]\n",
-   //         (double)(tend - tstart) / CLOCKS_PER_SEC);
-
-    // return 1;
 
     return;
 }

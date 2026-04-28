@@ -37,7 +37,12 @@ const int WordAllocationE1[30] = {
 	2, 4, 6, 9, 10,17, 19, 16, 0, 0, 1, 3, 5, 0, 16
 };
 extern vector<page_struct> nav_page;
+extern vector<page_struct> nav_page_all;
 extern vector<page_struct> nav_page_2;
+extern vector<int> initial_visible_prn_list;
+extern vector<int> candidate_prn_list;
+extern vector<vector<int>> nearest_prn_by_visible;
+extern int neb_num;
 void sigint_handler(int code);
 void date2gal(const datetime_t *t, galtime_t *g);
 
@@ -264,6 +269,7 @@ void trsData(int *page,int *data);
 void encode_int_to_bits(int *page, unsigned int value, int num_bits);
 unsigned int Crc24qEncode1(int *BitStream, int Length);
 void singleIn(int a,vector<page_struct> cur_page);
+void runCrossAuthenticationForVisiblePrn(int visible_index, int target_prn);
 // /*! \brief FIFO functions - socket.cpp */
 // int sockinit(short port);
 // void sockclose(int s);

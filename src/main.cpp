@@ -7,6 +7,7 @@
 #include<malloc.h>
 #include<iostream>
 #include<string>
+#include <unordered_set>
 #include<queue>
 #include <cstring>
 #include <cstdint>
@@ -18,6 +19,10 @@
 #include <algorithm>
 #include <bitset>
 #include<stdio.h>
+#include <cerrno>
+#include <climits>
+#include <cstdlib>
+
 #define BIT_ISSET(var, n) !!((long)(var) & (1 << (n)))
 
 #define EXECUTE_OR_GOTO(label, ...) \
@@ -32,10 +37,11 @@ using namespace std;
 int durring_time=0;
 int numSub = 0;
 string PATH="";
+int neb_num = 3;  // test
 int subNub=10;
 const string mapping = "0123456789ABCDEF";
 double start_time = 1000000000.0;
-
+vector<page_struct> nav_page_all;
 int cur_wn = 0;
 bool stop_signal_called = false;
     int HF=0;
@@ -185,6 +191,7 @@ void usage(char *progname)
         "  -t <date,time>   Scenario start time YYYY/MM/DD,hh:mm:ss\n"
         "  -T <date,time>   Overwrite TOC and TOE to scenario start time\n"
         "  -d <duration>    Duration [sec] (max: %.0f)\n"
+        "  -c <num>         Number of neighboring satellites for cross-authentication (default: 5)\n"
         "  -a <rf_gain>     Absolute RF gain in [0 ... 60] (default: 30)\n"
         "  -s <PATH>        Custom path for config/resource/anything you want\n"
         "  -U               Disable USRP (-U 1)\n"
@@ -585,7 +592,7 @@ int main(int argc, char *argv[])
     float *buffer = NULL;
     const void **buffer_ptr = NULL;
 
-    while ((result = getopt(argc, argv, "e:n:o:u:g:l:T:t:s:d:G:a:p:iI:U:b:v")) != -1)
+    while ((result = getopt(argc, argv, "e:n:o:u:g:l:T:t:s:d:G:a:p:c:iI:U:b:v")) != -1)
     {
         switch (result)
         {
@@ -670,6 +677,20 @@ int main(int argc, char *argv[])
 
             break;
 
+        case 'c':
+        {
+            char *endptr = NULL;
+            errno = 0;
+            long value = strtol(optarg, &endptr, 10);
+            if (errno != 0 || endptr == optarg || *endptr != '\0' || value <= 0 || value > INT_MAX)
+            {
+                printf("ERROR: Invalid neighboring satellite number for -c. It must be a positive integer.\n");
+                exit(1);
+            }
+            neb_num = static_cast<int>(value);
+            break;
+        }
+
         case 'i':
             s.opt.interactive = TRUE;
             break;
@@ -733,13 +754,38 @@ int main(int argc, char *argv[])
    //cout<<PATH<<endl;
     //cout<<"----asdasdas-------"<<cur_wn<<endl;
     vector<int> cur_prn;
-    //cout<<nav_page.size()<<endl;
-   //show2(nav_page);
+
+     for(int i=0;i<initial_visible_prn_list.size();i++)
+    {
+       //cout<<cur_prn[i]<<endl;
+       nav_page.erase(nav_page.begin());
+    }
+    nav_page_all = nav_page;
+
+	// 重新构造一个只包含 candidate_prn_list 中卫星的 nav_page
+	vector<page_struct> filtered_nav_page;
+
+	for (size_t i = 0; i < nav_page_all.size(); i++)
+	{
+	    for (size_t j = 0; j < initial_visible_prn_list.size(); j++)
+	    {
+		if (nav_page_all[i].prn == initial_visible_prn_list[j])
+		{
+		    filtered_nav_page.push_back(nav_page_all[i]);
+		    break;
+		}
+	    }
+	}
+
+	// 替换原 nav_page
+    nav_page = filtered_nav_page;
+    //show2(nav_page);
+    //show2(nav_page_all);
     int prnNum=getNumberPrn(cur_prn);
     cout<<"prnNum: "<<prnNum<<endl;
     
     
-        size_t pos = PATH.find_last_of('/');
+    size_t pos = PATH.find_last_of('/');
 
     // 2. 提取文件名
     string filename = PATH.substr(pos + 1);
@@ -770,16 +816,12 @@ int main(int argc, char *argv[])
       //cout<<"key: "<<key[i].key<<"  Tow: "<<key[i].firstTow<<endl;
    }
     
-    for(int i=0;i<prnNum;i++)
-    {
-       //cout<<cur_prn[i]<<endl;
-       
-    }
+
+    
     cout << "selected PRN :[";
 	for (int i = 0; i < prnNum; i++)
 	{
 	    cout << cur_prn[i];
-	    nav_page.erase(nav_page.begin());
 	    if (i != prnNum - 1)
 		cout << ",";
 	}
@@ -787,6 +829,8 @@ int main(int argc, char *argv[])
             //cout<<"---------------------------------------------"<<endl;
     
         cout<<"================= OSNMA Configuration ================="<<endl;
+    
+    //cout<<nav_page.size()<<endl;
 
     int fl=0;
 
@@ -932,12 +976,21 @@ cout<<" ✔ Completed"<<endl;
         singleIn(prn,cur_page);
         
     }
+    
+    // zhe li shi cross_auth ，
+    for(int i=0;i<prnNum;i++) // 遍历可见卫星
+	{
+	    runCrossAuthenticationForVisiblePrn(i, cur_prn[i]);
+	}
+
+    
+    
+
     cout<<"---------------------------------------------"<<endl;
     for(int i=0;i<prnNum;i++)
     {
     	//cout<<"Generate osnma data for prn "<<cur_prn[i]<<endl;
     }
-    //cout<<start_time<<"++++++++++++++++"<<endl;
     
     
     //show(nav_page);

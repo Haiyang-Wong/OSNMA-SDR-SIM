@@ -2,10 +2,9 @@
 
 OSNMA-SDR-SIM generates **OSNMA-enabled** Galileo baseband signal data streams, which can be converted to RF using software-defined radio (SDR) platforms.
 
-- Galileo E1-B signal generation
-- OSNMA data generation
-- USRP TX support 
-- File sink
+- Galileo E1-B signal generation with **integrated OSNMA**
+- USRP TX and file sink
+- **Cross-authentication**
 
 ## Requirements
 
@@ -21,7 +20,7 @@ sudo apt-get install -y libuhd-dev uhd-host gnss-sdr g++ libncurses-dev cmake pk
 pip3 install pynput
 ```
 
-For evaluation, you need **GNSS-SDR** (https://gnss-sdr.org/) and **OSNMAlib** (https://github.com/Algafix/OSNMA). For more installation options, please check their website.
+For evaluation, you need **GNSS-SDR** (https://gnss-sdr.org/) and **OSNMAlib** (https://github.com/Algafix/OSNMA). Please see their project for more installation options.
 
 ## Installation
 ```
@@ -41,7 +40,7 @@ Options:
   -e <Ephemeris>   RINEX navigation file for Galileo ephemerides (required)
   -o <File sink>   File to store IQ samples (default: ./galileosim.ishort)
   -u <user_motion> User motion file (dynamic mode)
-  -l <location>    Lat,Lon,Hgt (static mode) e.g. 35.274,137.014,100
+  -l <location>    Lat,Lon,Hgt (static mode) e.g. 20,-51,100
   -t <date,time>   Scenario start time YYYY/MM/DD,hh:mm:ss
   -T <date,time>   Overwrite TOC and TOE to scenario start time
   -d <duration>    Duration [sec] (default: 300)
@@ -50,13 +49,27 @@ Options:
   -U <use usrp>    Disable USRP (-U 1) (default: true)
   -b <bitstream>   Disable Bit stream (-b 1) (default: true)
   -v <verbose>     Enable verbose output (default: false)
+  -c <PRN num>     Number of cross-satellite authentication (default: 3)
 ```
 
 Executing the following command will generate a OSNMA-enabled Galileo signal file for the location 20,-51,100 starting from 2023/10/07,14:45:01. The generated samples will be stored in **osnmasim.bin** as interleaved shorts (I<sub>1</sub>Q<sub>1</sub>, I<sub>2</sub>Q<sub>2</sub>, ... , I<sub>n</sub>Q<sub>n</sub>), with a sampling rate of 2.6 MHz.
 
 ```
-./osnma-sdr-sim -l 20,-51,100 -t 2023/10/07,14:45:01 -s ../auxiliary_osnma/07_OCT_2023_GST_14_45_01_fixed.csv  -e ../rinex_files/2023_10_07.rnx -o ../osnmasim.bin -U 1 -b 0 -d 480
+./osnma-sdr-sim -l 20,-51,100 -t 2023/10/07,14:45:01 -s ../auxiliary_osnma/07_OCT_2023_GST_14_45_01_fixed.csv  -e ../rinex_files/2023_10_07.rnx -o ../osnmasim.bin -U 1 -b 0 -d 480 -c 4
 ```
+
+### Cross-satellite Authentication
+
+This project currently uses an **inter-satellite proximity** scheme for cross-satellite authentication. For each reference satellite, the number of other satellites it verifies can be specified using the parameters '-c'. The figure below illustrates different **numbers** of cross-authentication satellite and **tag allocation** strategies.
+
+![](cross-satellite-authentication.png)
+
+| Subframe ID |           Tag allocation (six satellites)            |          Tag allocation (three satellites)           |
+| :---------: | :--------------------------------------------------: | :--------------------------------------------------: |
+|      0      |   [PRN1, **PRN2**, PRN1, **PRN3**, PRN1, **PRN4**]   |   [PRN1, **PRN2**, PRN1, **PRN3**, PRN1, **PRN4**]   |
+|      1      | [PRN1, **PRN5**, **PRN6**, PRN1, **PRN7**, **PRN2**] | [PRN1, **PRN2**, **PRN3**, PRN1, **PRN4**, **PRN2**] |
+|      2      |   [PRN1, **PRN3**, PRN1, **PRN4**, PRN1, **PRN5**]   |   [PRN1, **PRN3**, PRN1, **PRN4**, PRN1, **PRN2**]   |
+|      3      | [PRN1, **PRN6**, **PRN7**, PRN1, **PRN2**, **PRN3**] | [PRN1, **PRN3**, **PRN4**, PRN1, **PRN2**, **PRN3**] |
 
 ## Evaluation
 
@@ -76,9 +89,10 @@ In addition, this project provides several public key files associated with OSNM
 
 ### Future work
 
-+ Design and implement **cross-authentication**
-+ Generate and integrate **E5b-I signals**
++ Design and implement **cross-satellite authentication** (already implemented)
++ Generate and integrate **E5b signals** for **cross-band authentication**
 + User interaction, customizable configuration
++ Cross-authentication of **other satellite constellations**
 
 ## Acknowledgements
 

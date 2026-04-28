@@ -46,7 +46,7 @@ void fill_nav_page(galtime_t g, ephem_t *eph,int *odd_page,int *even_page)
         //{
             
            // cout<<a.tow<<"---------------"<<endl;
-            nav_page_2.push_back(a);
+            //nav_page_2.push_back(a);
        // }
 }
 void fixNavPage(int a,vector<page_struct> &cur_prn)
