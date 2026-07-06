@@ -1,0 +1,430 @@
+#define _CRT_SECURE_NO_WARNINGS
+
+#include "../include/galileo-sdr.h"
+#include "../include/downloader.h"
+#include "../include/logging.h"
+#include <math.h>
+#include <unistd.h>
+#include <vector>
+
+#define EXECUTE_OR_GOTO(label, ...) \
+    if (__VA_ARGS__)                \
+    {                               \
+        return_code = EXIT_FAILURE; \
+        goto label;                 \
+    }
+
+using namespace std;
+
+bool stop_signal_called = false;
+
+void sigint_handler(int code)
+{
+    (void)code;
+    stop_signal_called = true;
+    fprintf(stderr, "\n[STOP] Interrupted by user.\n");
+}
+
+long int samples_consumed = 0l;
+
+void init_sim(sim_t *s)
+{
+    log_info("E5 simulator initialization started");
+
+    pthread_mutex_init(&(s->tx.lock), NULL);
+    // s->tx.error = 0;
+
+    pthread_mutex_init(&(s->galileo_sim.lock), NULL);
+    // s->galileo_sim.error = 0;
+    s->galileo_sim.ready = 0;
+
+    pthread_cond_init(&(s->galileo_sim.initialization_done), NULL);
+
+    s->status = 0;
+    s->head = 0;
+    s->tail = 0;
+    s->sample_length = 0;
+
+    pthread_cond_init(&(s->fifo_write_ready), NULL);
+
+    pthread_cond_init(&(s->fifo_read_ready), NULL);
+
+    s->time = 0.0;
+
+    printf("\n[E5] Simulator initialized.");
+}
+
+void *tx_task(void *arg)
+{
+    sim_t *s = (sim_t *)arg;
+    init_tables();
+    size_t samples_populated;
+    size_t num_samps_sent = 0;
+    size_t samples_per_buffer = SAMPLES_PER_BUFFER;
+    fprintf(stderr, "\n[TX] Transmission task started.");
+    // sleep(1);
+    int k = 0;
+
+    while (1)
+    {
+        if (stop_signal_called)
+            goto out;
+
+        pthread_mutex_lock(&(s->galileo_sim.lock));
+        while (get_sample_length(s) < SAMPLES_PER_BUFFER)
+        {
+            if (stop_signal_called || is_finished_generation(s))
+                break;
+            pthread_cond_wait(&(s->fifo_read_ready), &(s->galileo_sim.lock));
+        }
+
+        if (stop_signal_called)
+        {
+            pthread_mutex_unlock(&(s->galileo_sim.lock));
+            goto out;
+        }
+
+        samples_populated = fifo_read(s->tx.buffer, SAMPLES_PER_BUFFER, s);
+        pthread_mutex_unlock(&(s->galileo_sim.lock));
+
+        pthread_cond_signal(&(s->fifo_write_ready));
+
+        k++;
+
+        size_t num_tx_samps = s->tx.stream->send(s->tx.buffer, SAMPLES_PER_BUFFER, s->tx.md, 1000);
+        samples_consumed = samples_consumed + num_tx_samps;
+        // fprintf(stderr, "\nSent %d", k);
+        // tx_buffer_vector.clear();
+
+        if (is_fifo_write_ready(s))
+        {
+            fprintf(stderr, "\r[TX] elapsed %.1f s, buffers sent %d", s->time, k);
+            s->time += 0.1;
+            fflush(stdout);
+        }
+        else if (is_finished_generation(s))
+        {
+            goto out;
+        }
+    }
+out:
+    return NULL;
+}
+
+int start_tx_task(sim_t *s)
+{
+    int status;
+
+    status = pthread_create(&(s->tx.thread), NULL, tx_task, s);
+
+    return (status);
+}
+
+int start_galileo_task(sim_t *s)
+{
+    int status;
+
+    status = pthread_create(&(s->galileo_sim.thread), NULL, galileo_task, s);
+
+    return (status);
+}
+
+void usage(char *progname)
+{
+    printf(
+        "Usage: %s [options]\n"
+        "Options:\n"
+        "  -e <Ephemeris>   RINEX navigation file for Galileo ephemerides (optional with -D)\n"
+        "  -D               Auto-download latest Galileo navigation file (CDDIS/Garner/CENO)\n"
+        "  -r <Cache Dir>   RINEX cache directory (default: ./rinex_cache)\n"
+        "  -o <File sink>   File to store IQ samples\n"
+        "  -S <signal>      Signal to generate: e1, e5b, or both (default: e1)\n"
+        "  -l <location>    Lat,Lon,Hgt (static mode) e.g. 35.274,137.014,100\n"
+        "  -t <date,time>   Scenario start time YYYY/MM/DD,hh:mm:ss\n"
+        "  -T <date,time>   Overwrite TOC and TOE to scenario start time\n"
+        "  -d <duration>    Duration [sec] (max: %.0f)\n"
+        "  -a <rf_gain>     Absolute RF gain in [0 ... 60] (default: 30)\n"
+        "  -U               Disable USRP (-U 1)\n"
+        "  -b               Disable Bit stream (-b 1)\n",
+        progname,
+
+        ((double)USER_MOTION_SIZE) / 10.0);
+
+    return;
+}
+
+int main(int argc, char *argv[])
+{
+    if (argc < 3)
+    {
+        usage(argv[0]);
+        exit(1);
+    }
+
+    // Initialize logging
+    logging_init(LOG_INFO);
+
+    // Set default values
+    sim_t s;
+
+    s.finished = false;
+    s.opt.navfile[0] = 0;
+    s.opt.tvfile[0] = 0;
+    s.opt.outfile[0] = 0;
+
+    s.opt.g0.week = -1;
+    s.opt.g0.sec = 0.0;
+    s.opt.iduration = USER_MOTION_SIZE;
+    s.opt.verb = FALSE;
+    s.opt.llh[0] = 42.3601;
+    s.opt.llh[1] = -71.0589;
+    s.opt.llh[2] = 2;
+    s.opt.interactive = FALSE;
+    s.opt.timeoverwrite = FALSE;
+    s.opt.iono_enable = TRUE;
+    s.udp_port = 5671;
+    s.opt.use_usrp = true;
+    s.opt.use_bit_stream = true;
+    s.opt.signal_mode = SIGNAL_MODE_E1;
+
+    // Options
+    int result;
+    double duration;
+    datetime_t t0;
+    double gain = 0;
+    std::string device_args = "";
+    size_t channel = 1;
+    bool verbose = false;
+    int return_code = EXIT_SUCCESS;
+    char error_string[512];
+    double rate = TX_SAMPLERATE;
+    double freq = TX_FREQUENCY;
+    bool use_usrp = true;
+    // Buffer sizes
+    size_t samps_per_buff = SAMPLES_PER_BUFFER;
+    float *buffer = NULL;
+    const void **buffer_ptr = NULL;
+
+    while ((result = getopt(argc, argv, "e:n:o:u:g:l:T:t:d:G:a:p:iI:U:b:vDr:S:")) != -1)
+    {
+        switch (result)
+        {
+        case 'e':
+            strcpy(s.opt.navfile, optarg);
+            break;
+
+        case 'n':
+            strcpy(s.opt.tvfile, optarg);
+            break;
+
+        case 'o':
+            strcpy(s.opt.outfile, optarg);
+            break;
+
+        case 'S':
+            if (strcmp(optarg, "e1") == 0)
+                s.opt.signal_mode = SIGNAL_MODE_E1;
+            else if (strcmp(optarg, "e5b") == 0)
+                s.opt.signal_mode = SIGNAL_MODE_E5B;
+            else if (strcmp(optarg, "both") == 0)
+                s.opt.signal_mode = SIGNAL_MODE_BOTH;
+            else
+            {
+                printf("ERROR: Invalid signal mode '%s'. Use e1, e5b, or both.\n", optarg);
+                usage(argv[0]);
+                exit(1);
+            }
+            break;
+
+        case 'l':
+            sscanf(optarg, "%lf,%lf,%lf", &s.opt.llh[0], &s.opt.llh[1],
+                   &s.opt.llh[2]);
+            break;
+
+        case 'T':
+            s.opt.timeoverwrite = TRUE;
+            if (strncmp(optarg, "now", 3) == 0)
+            {
+                time_t timer;
+                struct tm *gmt;
+
+                time(&timer);
+                gmt = gmtime(&timer);
+
+                t0.y = gmt->tm_year + 1900;
+                t0.m = gmt->tm_mon + 1;
+                t0.d = gmt->tm_mday;
+                t0.hh = gmt->tm_hour;
+                t0.mm = gmt->tm_min;
+                t0.sec = (double)gmt->tm_sec;
+
+                date2gal(&t0, &s.opt.g0);
+
+                break;
+            }
+
+        case 't':
+            sscanf(optarg, "%d/%d/%d,%d:%d:%lf", &t0.y, &t0.m, &t0.d, &t0.hh, &t0.mm,
+                   &t0.sec);
+            if (t0.y <= 1980 || t0.m < 1 || t0.m > 12 || t0.d < 1 || t0.d > 31 ||
+                t0.hh < 0 || t0.hh > 23 || t0.mm < 0 || t0.mm > 59 || t0.sec < 0.0 ||
+                t0.sec >= 60.0)
+            {
+                printf("ERROR: Invalid date and time.\n");
+                exit(1);
+            }
+            t0.sec = floor(t0.sec);
+            date2gal(&t0, &s.opt.g0);
+            break;
+
+        case 'd':
+            duration = atof(optarg);
+            s.opt.iduration = (int)(duration * 10.0 + 0.5);
+            break;
+
+        case 'G':
+            gain = atof(optarg);
+            if (gain < 0)
+                gain = 0;
+            if (gain > 60)
+                gain = 60;
+            break;
+
+        case 'a':
+            device_args = strdup(optarg);
+            break;
+
+        case 'p':
+            // printf("%s\n", optarg);
+            s.udp_port = atoi(optarg);
+
+            break;
+
+        case 'i':
+            s.opt.interactive = TRUE;
+            break;
+
+        case 'I':
+            s.opt.iono_enable = FALSE; // Disable ionospheric correction
+            break;
+
+        case 'U':
+            s.opt.use_usrp = false;
+            use_usrp = false;
+            break;
+
+        case 'b':
+            s.opt.use_bit_stream = false;
+            break;
+
+        case 'v':
+            s.opt.verb = true;
+            break;
+
+        case 'D':
+            s.opt.auto_download = TRUE;
+            break;
+
+        case 'r':
+            strncpy(s.opt.rinex_cache_dir, optarg, sizeof(s.opt.rinex_cache_dir)-1);
+            break;
+
+        case ':':
+
+        case '?':
+            usage(argv[0]);
+            exit(1);
+
+        default:
+            break;
+        }
+    }
+
+    // Handle auto-download if enabled
+    if (s.opt.auto_download && s.opt.navfile[0] == 0) {
+        char cache_file[512];
+        const char *cache_dir = s.opt.rinex_cache_dir[0] ? s.opt.rinex_cache_dir : "rinex_cache";
+        snprintf(cache_file, sizeof(cache_file), "%s/galileo-latest.rnx", cache_dir);
+        
+        fprintf(stderr, "[*] Auto-downloading latest Galileo navigation file...\n");
+        fprintf(stderr, "[*] Cache directory: %s\n", cache_dir);
+        
+        if (download_latest_galileo_nav(cache_file, 7) == 0) {
+            strncpy(s.opt.navfile, cache_file, sizeof(s.opt.navfile)-1);
+            fprintf(stderr, "[CONFIG] Navigation file: %s\n", s.opt.navfile);
+        } else {
+            fprintf(stderr, "ERROR: Failed to download navigation file\n");
+            fprintf(stderr, "       Please provide navigation file with -e flag\n");
+            exit(1);
+        }
+    }
+
+    if (s.opt.navfile[0] == 0 && s.opt.tvfile[0] == 0)
+    {
+        printf("ERROR: Galileo ephemeris/nav_msg file is not specified.\n");
+        printf("       Use -D flag to auto-download latest file, or -e to provide file path.\n");
+        exit(1);
+    }
+
+    if (s.opt.outfile[0] == 0)
+    {
+        printf("[CONFIG] output_file not set; using galileosim.bin\n");
+        snprintf(s.opt.outfile, sizeof(s.opt.outfile), "galileosim.ishort");
+    }
+
+    if (s.opt.signal_mode == SIGNAL_MODE_BOTH && use_usrp)
+    {
+        fprintf(stderr, "[CONFIG] -S both selected: USRP disabled; writing E1/E5b files separately.\n");
+        s.opt.use_usrp = false;
+        use_usrp = false;
+    }
+
+    // Initialize simulator
+    init_sim(&s);
+
+    // Allocate FIFOs to hold 0.1 seconds of I/Q samples each.
+    s.fifo = (short *)malloc(FIFO_LENGTH * sizeof(short) * 2); // for 32-bit I and Q samples
+
+    if (s.fifo == NULL)
+    {
+        printf("ERROR: Failed to allocate I/Q sample buffer.\n");
+        // goto out;
+    }
+
+    if (use_usrp)
+    {   
+        usrp_conf_t usrp_conf;  
+        usrp_conf.carr_freq = (s.opt.signal_mode == SIGNAL_MODE_E5B) ? (double)TX_FREQUENCY_E5b : (double)GALILEO_E1_FREQ_HZ;
+        usrp_conf.gain = gain;
+        usrp_conf.device_args = device_args;
+        usrp_conf.samp_rate = TX_SAMPLERATE;
+
+        init_usrp(usrp_conf, &s);
+    }
+    else
+    {
+        // When not using USRP, we need to generate navigation messages manually
+        // because tx_task is not running.
+        printf("\n[E5] Generating navigation bits...\n");
+        // We do this inside galileo_task usually, but it needs to be initialized.
+    }
+
+    // Start Galileo task.
+    s.status = start_galileo_task(&s);
+    if (s.status < 0)
+    {
+        fprintf(stderr, "Failed to start Galileo task.\n");
+    }
+    else
+        printf("\n[E5] Starting signal generation task...\n");
+
+    // Wait until finished or Ctrl+C
+    if (use_usrp) {
+        pthread_join(s.tx.thread, NULL);
+    } else {
+        pthread_join(s.galileo_sim.thread, NULL);
+    }
+
+    fprintf(stderr, "\n[TX] Total samples consumed: %ld", samples_consumed);
+    printf("\n[E5] Done.\n");
+}

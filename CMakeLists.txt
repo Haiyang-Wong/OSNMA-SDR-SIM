@@ -39,6 +39,8 @@ find_package(PkgConfig)
 find_package(UHD)
 find_package(Boost COMPONENTS thread system program_options REQUIRED)
 find_package(Curses REQUIRED)
+find_package(CURL REQUIRED)
+find_package(ZLIB REQUIRED)
 
 # The version in  ^^^^^  here is a minimum version.
 # To specify an exact version:
@@ -60,23 +62,39 @@ set(MATH_LIBRARIES ${MATH_LIBRARY} -lm)
 
 # need these include and link directories for the build
 include_directories(
-    ${UHD_INCLUDE_DIRS} ${CURSES_INCLUDE_DIRS} ${Boost_INCLUDE_DIR} ${ZeroMQ_LIBRARY} ${CMAKE_BINARY_DIR}/include ${CMAKE_BINARY_DIR}/src ${CMAKE_BINARY_DIR}/debug_scripts
+    ${UHD_INCLUDE_DIRS} ${CURSES_INCLUDE_DIRS} ${Boost_INCLUDE_DIR} ${ZeroMQ_LIBRARY} ${CMAKE_BINARY_DIR}/include ${CMAKE_BINARY_DIR}/src ${CMAKE_BINARY_DIR}/debug_scripts ${CURL_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS}
 )
 
 ### Make the executable #######################################################
-file(GLOB SRC
-     "src/*.cpp"
+set(E1_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/e1/src")
+set(E1_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/e1/include")
+set(E5_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/e5/src")
+set(E5_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/e5/include")
+
+file(GLOB E1_SRC
+     "${E1_SRC_DIR}/*.cpp"
+)
+list(APPEND E1_SRC "${E1_SRC_DIR}/osnma-tag-statistics.cpp")
+list(REMOVE_DUPLICATES E1_SRC)
+
+file(GLOB E1_INC
+     "${E1_INCLUDE_DIR}/*.h"
 )
 
-file(GLOB INC
-     "include/*.h"
+file(GLOB E5_SRC
+     "${E5_SRC_DIR}/*.cpp"
+)
+
+file(GLOB E5_INC
+     "${E5_INCLUDE_DIR}/*.h"
 )
 
 #add_executable(galileo-sdr galileo-sdr.cpp include/galileo-sdr.h include/FileIO.cpp include/pch.cpp include/TimeUtils.cpp include/StringUtils.cpp include/Rinex3Nav.cpp)
 #add_executable(usrp_galileo usrp_galileo.cpp include/galileo-sdr.cpp include/nav_msg_data.cpp include/usrp_galileo.h include/galileo-sdr.h include/constants.h)
 #add_executable(generate_frame debug_scripts/generate_frame.cpp)
 #add_executable(rinex_reader debug_scripts/rinex_reader.cpp include/galileo-sdr.h)
-add_executable(osnma-sdr-sim src/main.cpp  ${SRC} ${INC})
+add_executable(osnma-sdr-sim ${E1_SRC} ${E1_INC})
+add_executable(osnma-sdr-sim-e5 ${E5_SRC} ${E5_INC})
 
 set(LIBM_LIBRARIES)
 message(STATUS "******************************************************************************")
@@ -110,6 +128,9 @@ pkg_check_modules(deps REQUIRED IMPORTED_TARGET glib-2.0)
 #target_link_libraries (galileo-sdr ${CMAKE_THREAD_LIBS_INIT})
 #target_link_libraries(galileo-sdr PkgConfig::deps)
 target_link_libraries (osnma-sdr-sim ${UHD_LIBRARIES} ${Boost_LIBRARIES} ${CURSES_LIBRARIES} ${ZeroMQ_LIBRARY} ${CMAKE_THREAD_LIBS_INIT} PkgConfig::deps)
+target_link_libraries (osnma-sdr-sim-e5 ${UHD_LIBRARIES} ${Boost_LIBRARIES} ${CURSES_LIBRARIES} ${ZeroMQ_LIBRARY} ${CMAKE_THREAD_LIBS_INIT} PkgConfig::deps ${CURL_LIBRARIES} ${ZLIB_LIBRARIES})
+
+add_dependencies(osnma-sdr-sim osnma-sdr-sim-e5)
 
 ### Once it's built... ########################################################
 # Here, you would have commands to install your program.
