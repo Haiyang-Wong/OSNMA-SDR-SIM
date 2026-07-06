@@ -112,7 +112,7 @@ The generated Galileo signal has been tested with **GNSS-SDR** and **OSNMAlib**.
 
 The PVT solution and OSNMA authentication results from GNSS-SDR are shown in the figure below.
 
-<img src="E1-GNSSSDR-Output.png" width="427"><img src="E5-GNSSSDR-Output.png" width="463">
+![](E1-E5-GNSS-SDR.png)
 
 ![](OSNMA-Authentication-Timeline.png)
 
